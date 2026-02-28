@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diamond Tracker Pro</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<button class="theme-toggle" onclick="cycleTheme()" aria-label="Change Theme">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+    </svg>
+</button>
+
+<div class="timer-container" id="timer-btn" aria-label="Game Timer">
+    <div onclick="toggleTimer()" style="display:flex; align-items:center; cursor:pointer;">
+        <span id="timer-display" style="padding: 0 5px;">00:00:00</span>
+    </div>
+    <div onclick="resetTimer()" style="opacity:0.5; border-left:1px solid rgba(255,255,255,0.2); padding-left:10px; margin-left:5px; display:flex; align-items:center; cursor:pointer;" title="Reset Timer">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+    </div>
+</div>
+
+<div class="live-controls">
+    <button id="broadcast-btn" class="btn btn-primary" style="font-size: 11px; padding: 5px 10px;" onclick="startBroadcast()">
+        📡 GO LIVE
+    </button>
+    <div id="status-indicator" class="hidden">
+        <span class="pulse">●</span> BROADCASTING LIVE
+    </div>
+</div>
+
+<div class="share-wrapper">
+    <button class="share-toggle" id="share-btn" onclick="toggleShareMenu(event)" aria-label="Share Game">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z"/>
+        </svg>
+    </button>
+    <div id="share-menu" class="share-menu glass">
+        <button onclick="shareTo('text')">Share with Text</button>
+        <button onclick="shareTo('email')">Share with Email</button>
+        <button onclick="shareTo('copyLink')">Copy Site Link</button>
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
+        <button onclick="shareTo('copyGameRecap')">Copy Full Recap</button>
+        <button onclick="shareTo('generateSimpleRecap')">Copy Simple Score</button>
+    </div>
+</div>
+
+<div class="app-container">
+    <div class="header glass">
+        <div class="inning-container">
+            <div id="inning-text" class="inning-display">
+                <span id="inning-half">TOP</span> <span id="inning-num">1</span>
+            </div>
+        </div>
+        <div class="inning-nav">
+            <button class="nav-btn" onclick="changeInning(-1)">←</button>
+            <button class="nav-btn" onclick="changeInning(1)">→</button>
+        </div>
+    </div>
+
+    <div class="score-grid">
+        <div class="team-card glass" id="away-card">
+            <span class="label" id="away-label">AWAY</span>
+            <div class="goo-zone away-filter">
+                <div id="away-score" class="score-display">0</div>
+            </div>
+            <div class="controls">
+                <button class="m-btn" onclick="updateScore('away', -1)">−</button>
+                <button class="p-btn" onclick="updateScore('away', 1)">+</button>
+            </div>
+        </div>
+
+        <div class="team-card glass" id="home-card">
+            <span class="label" id="home-label">HOME</span>
+            <div class="goo-zone home-filter">
+                <div id="home-score" class="score-display">0</div>
+            </div>
+            <div class="controls">
+                <button class="m-btn" onclick="updateScore('home', -1)">−</button>
+                <button class="p-btn" onclick="updateScore('home', 1)">+</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass outs-card" onclick="handleOutClick(event)">
+        <span class="label">OUTS</span>
+        <div class="dots">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+    </div>
+    
+    <div class="glass pitch-card" id="pitch-card" style="display: none;">
+        <div id="pitch-simple">
+            <span class="label">PITCH COUNT</span>
+            <div class="score-display-small" id="simple-pitch-count">0</div>
+            <div class="controls">
+                <button class="m-btn" onclick="updatePitch('simple', -1)">−</button>
+                <button class="p-btn" onclick="updatePitch('simple', 1)">+</button>
+            </div>
+        </div>
+        <div id="pitch-advanced">
+            <div class="advanced-pitch-grid">
+                <div class="pitch-col">
+                    <span class="label">BALLS</span>
+                    <div class="score-display-small" id="adv-balls">0</div>
+                    <div class="controls">
+                        <button class="m-btn" onclick="updatePitch('balls', -1)">−</button>
+                        <button class="p-btn" onclick="updatePitch('balls', 1)">+</button>
+                    </div>
+                </div>
+                <div class="pitch-col">
+                    <span class="label">STRIKES</span>
+                    <div class="score-display-small" id="adv-strikes">0</div>
+                    <div class="controls">
+                        <button class="m-btn" onclick="updatePitch('strikes', -1)">−</button>
+                        <button class="p-btn" onclick="updatePitch('strikes', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+            <div class="pitch-stats">
+                <div>TOTAL: <span id="adv-total">0</span></div>
+                <div>STRIKE %: <span id="adv-percent">0%</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="tools-trigger" onclick="toggleDrawer(true)">TOOLS & HIT LOG</button>
+</div>
+
+<button class="wakelock-toggle" id="wakelock-btn" onclick="toggleWakeLock()" aria-label="Toggle Screen Awake">
+    <svg id="lock-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>
+    </svg>
+</button>
+
+<button class="pitch-toggle" id="pitch-toggle-btn" onclick="togglePitchMode()" aria-label="Toggle Pitch Counter">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-5 1.46c1.88 2.07 3 4.83 3 7.54s-1.12 5.47-3 7.54V3.46zm10 17.08c-1.88-2.07-3-4.83-3-7.54s1.12-5.47 3-7.54v15.08z"/>
+    </svg>
+    <span id="pitch-mode-indicator" class="mode-indicator">OFF</span>
+</button>
+
+<div id="drawer-overlay" class="drawer-overlay" onclick="toggleDrawer(false)">
+    <div class="drawer-content glass" onclick="event.stopPropagation()">
+        <div class="drawer-handle"></div>
+        <h3>Tools & Hit Log</h3>
+        
+        <div class="tool-section">
+            <label class="label">RECORD PLAY</label>
+            <div class="hit-input-stack">
+                <input type="text" id="log-player" placeholder="Player Name">
+                <div class="hit-select-row">
+                    <select id="log-type" onchange="handleHitTypeChange()">
+                        <option value="" disabled selected>Hit Type</option>
+                        <option value="single">Single</option>
+                        <option value="double">Double</option>
+                        <option value="triple">Triple</option>
+                        <option value="homerun">Home Run</option>
+                        <option value="walk">Walk</option>
+                        <option value="hbp">Hit by Pitch</option>
+                        <option value="strikeout">Strikeout</option>
+                        <option value="popout">Pop Out</option>
+                        <option value="flyout">Fly Out</option>
+                        <option value="groundout">Ground Out</option>
+                        <option value="lineout">Line Out</option>
+                    </select>
+                    <select id="log-location">
+                        <option value="" disabled selected>Location</option>
+                        <optgroup label="Infield">
+                            <option>First Base</option>
+                            <option>Second Base</option>
+                            <option>Third Base</option>
+                            <option>Shortstop</option>
+                            <option>Pitcher</option>
+                            <option>Catcher</option>
+                        </optgroup>
+                        <optgroup label="Outfield">
+                            <option>Left Field</option>
+                            <option>Center Field</option>
+                            <option>Right Field</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option>Out of the Park</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <button class="p-btn" style="width:100%; margin-top:5px" onclick="addHitLog()">Save Play</button>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <label class="label">GAME LOG</label>
+            <div id="hit-log-container" class="log-container">
+                <div class="log-empty">No plays recorded.</div>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <label class="label">EDIT TEAM NAMES</label>
+            <div class="mobile-input-stack">
+                <input type="text" id="edit-away" placeholder="Away Team Name" oninput="updateTeamName('away', this.value)">
+                <input type="text" id="edit-home" placeholder="Home Team Name" oninput="updateTeamName('home', this.value)">
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <button class="danger-btn" onclick="confirmReset()">Reset New Game</button>
+            <button class="danger-btn" style="background: #e63946; margin-top: 15px;" onclick="playBuns()">Bad Call (Don't press!)</button>
+        </div>
+        
+        <button class="close-drawer" onclick="toggleDrawer(false)">Close Menu</button>
+    </div>
+</div>
+
+<audio id="audio-trumpet" src="https://codehs.com/uploads/4d009d304f9233e118f6fef406eacf0f"></audio>
+<audio id="audio-rand-1" src="https://codehs.com/uploads/36995d37d517c5157548748c03c8c056"></audio>
+<audio id="audio-rand-3" src="https://codehs.com/uploads/23111e60d618b2d26f539dc67ee21ef6"></audio>
+<audio id="audio-rand-4" src="https://codehs.com/uploads/afd8d440785d8854379619a4a4117220"></audio>
+<audio id="audio-rand-5" src="https://codehs.com/uploads/3afae7ccb7367f42f18fced1d406b339"></audio>
+<audio id="audio-rand-6" src="https://codehs.com/uploads/b8f5f1c4ab403a98261b733ade593163"></audio>
+<audio id="audio-rand-7" src="https://codehs.com/uploads/91d108657817f518cb5ddc9998ab32a7"></audio>
+<audio id="audio-rand-8" src="https://codehs.com/uploads/88ff683ee037144dc255d52418092119"></audio>
+<audio id="audio-rand-9" src="https://codehs.com/uploads/95c2ecbe4967ab231d1fe71ffc2f1ff2"></audio>
+<audio id="audio-rand-10" src="https://codehs.com/uploads/6aeb103acd8c5864861849b89f5050e4"></audio>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <defs>
+    <filter id="gooey-away">
+      <feGaussianBlur id="blur-away" in="SourceGraphic" stdDeviation="-50" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -15" result="gooey" />
+      </filter>
+    
+    <filter id="gooey-home">
+      <feGaussianBlur id="blur-home" in="SourceGraphic" stdDeviation="-50" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -15" result="gooey" />
+    </filter>
+  </defs>
+</svg>
+
+<script src="script.js"></script>
+</body>
+</html>

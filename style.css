@@ -1,0 +1,296 @@
+:root {
+    --bg-color: #1a2e1a;
+    --glass-bg: rgba(0, 0, 0, 0.3);
+    --text-accent: #d4e09b;
+    --btn-primary: #3a5a40;
+    --btn-text: #ffffff;
+}
+
+body {
+    background: var(--bg-color);
+    margin: 0;
+    font-family: 'Arial Black', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    touch-action: manipulation;
+    transition: background 0.6s ease;
+    box-sizing: border-box;
+    padding: 90px 0;
+}
+
+/* --- Inning Animation --- */
+.inning-container { height: 40px; overflow: hidden; position: relative; width: 160px; } 
+.inning-display { 
+    position: absolute; 
+    width: 100%; 
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; 
+    font-size: 1.4rem; 
+    color: white; /* High visibility for inning info */
+    font-weight: bold;
+}
+.slide-out { transform: translateY(-40px); opacity: 0; }
+.slide-in { transform: translateY(40px); opacity: 0; }
+
+/* --- Batting Glow & Team Cards --- */
+.team-card { 
+    transition: box-shadow 0.4s ease, border 0.4s ease; 
+    border: 2px solid transparent; 
+}
+
+/* Enhanced visibility for the active team card against sun glare */
+.batting-now { 
+    border: 2px solid var(--text-accent) !important; 
+    box-shadow: 0 0 20px var(--text-accent); 
+    animation: pulse 2s infinite ease-in-out; 
+}
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+/* --- Navigation & Sharing --- */
+.theme-toggle, .share-wrapper, .timer-container {
+    position: fixed;
+    top: 20px; 
+    z-index: 110;
+}
+
+.theme-toggle, .share-toggle, .timer-container {
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white; border-radius: 30px; height: 60px;
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+    cursor: pointer;
+}
+
+.theme-toggle, .share-toggle { width: 60px; border-radius: 50%; }
+.theme-toggle { right: 20px; }
+.share-wrapper { left: 20px; }
+.share-toggle { position: relative; }
+
+.share-menu {
+    position: absolute; top: 70px; left: 0;
+    width: 200px; padding: 10px;
+    display: none; flex-direction: column; gap: 5px;
+    transform-origin: top left;
+    animation: menuFade 0.2s ease-out;
+}
+.share-menu.active { display: flex; }
+.share-menu button {
+    font-size: 16px; text-align: left; padding: 12px; border-radius: 8px; 
+    background: rgba(255,255,255,0.05); text-transform: none; font-family: sans-serif;
+}
+.share-menu button:active { background: var(--text-accent); color: black; }
+
+@keyframes menuFade {
+    from { opacity: 0; transform: scale(0.9) translateY(-10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.timer-container { left: 50%; transform: translateX(-50%); padding: 0 20px; gap: 10px; font-size: 1.3rem; min-width: 160px; } 
+.theme-toggle svg, .share-toggle svg, .timer-container svg { width: 28px; height: 28px; }
+.theme-toggle:active, .share-toggle:active { transform: scale(0.95); }
+.timer-container:active { transform: translateX(-50%); }
+
+/* --- Wake Lock & Pitch Toggles --- */
+.wakelock-toggle, .pitch-toggle {
+    position: fixed;
+    bottom: 20px;
+    z-index: 110;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+.wakelock-toggle { left: 20px; }
+.pitch-toggle { right: 20px; }
+
+.wakelock-toggle svg { width: 36px; height: 36px; }
+.pitch-toggle svg { width: 48px; height: 48px; }
+
+.wakelock-toggle.active, .pitch-toggle.active { color: var(--text-accent); }
+
+.mode-indicator { font-size: 11px; font-weight: bold; margin-top: 4px; letter-spacing: 1px; }
+
+/* --- App UI --- */
+.app-container { 
+    width: 420px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 12px; 
+    transform-origin: top center;
+}
+
+@media (max-width: 456px) {
+    .app-container {
+        transform: scale(calc(100vw / 456));
+    }
+}
+
+.glass { background: var(--glass-bg); border-radius: 24px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(10px); }
+.goo-zone { height: 150px; position: relative; display: flex; justify-content: center; align-items: center; }
+.away-filter { filter: url(#gooey-away); }
+.home-filter { filter: url(#gooey-home); }
+
+/* Score Display optimized for high-brightness outdoor use */
+.score-display { 
+    color: var(--text-accent); 
+    font-size: 110px; 
+    font-weight: 900; 
+    position: absolute; 
+    transition: opacity 0.8s ease-in-out; 
+    text-align: center; 
+    text-shadow: 0 0 15px rgba(0, 0, 0, 0.5); /* Prevents score washout in sunlight */
+}
+
+.exit { opacity: 0; }
+.enter { opacity: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; color: white; }
+.score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Higher contrast labels for field visibility */
+.label { 
+    display: block; 
+    text-align: center; 
+    color: var(--text-accent); /* Use theme accent for labels */
+    font-size: 14px; 
+    margin-bottom: 8px; 
+    letter-spacing: 2px; 
+    text-transform: uppercase; 
+    font-weight: 900; /* Increased weight */
+}
+
+#away-label, #home-label {
+    font-size: 22px; 
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.controls { display: flex; gap: 8px; margin-top: 10px; }
+button { flex: 1; border: none; border-radius: 12px; padding: 15px; cursor: pointer; background: rgba(255,255,255,0.08); color: white; font-size: 1.6rem; }
+.p-btn { background: var(--btn-primary); color: var(--btn-text); font-weight: bold; }
+.nav-btn { background: rgba(0,0,0,0.2); padding: 12px 20px; border-radius: 8px; font-size: 1.5rem; } 
+.dots { display: flex; justify-content: center; gap: 12px; margin-top: 10px; }
+.dot { width: 24px; height: 24px; background: rgba(0,0,0,0.3); border-radius: 50%; border: 1px solid rgba(255,255,255,0.05); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.dot.active { background: var(--text-accent); box-shadow: 0 0 15px var(--text-accent); transform: scale(1.2); }
+.tools-trigger { background: none; color: rgba(255,255,255,0.6); font-size: 14px; text-decoration: underline; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+
+/* --- Pitch Counter Styling --- */
+.pitch-card { margin-top: 0px; text-align: center; padding: 15px; }
+.score-display-small { color: var(--text-accent); font-size: 46px; font-weight: 900; line-height: 1; margin: 5px 0; }
+.pitch-card .controls button { padding: 10px; font-size: 1.4rem; }
+.advanced-pitch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+.pitch-stats { 
+    margin-top: 15px; 
+    font-size: 18px; 
+    font-weight: bold; 
+    color: rgba(255, 255, 255, 0.9); 
+    letter-spacing: 1px; 
+    line-height: 1.4; 
+    display: flex;
+    justify-content: space-around;
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    border-radius: 12px;
+}
+
+/* --- Drawer Styles --- */
+.drawer-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 1000; opacity: 0; visibility: hidden;
+    transition: all 0.3s ease; display: flex; align-items: flex-end;
+}
+.drawer-overlay.active { opacity: 1; visibility: visible; }
+.drawer-content {
+    width: 100%; border-radius: 30px 30px 0 0; padding: 25px;
+    transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    color: white; text-align: center; max-height: 85vh; overflow-y: auto;
+    background: var(--bg-color); /* Use theme bg for drawer consistency */
+}
+.drawer-overlay.active .drawer-content { transform: translateY(0); }
+.drawer-handle { width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: -5px auto 20px; }
+.tool-section { margin: 15px 0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+.mobile-input-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+
+/* --- Hit Log UI Styling --- */
+.hit-input-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.hit-select-row { display: flex; gap: 8px; }
+input[type="text"], select {
+    width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 15px; color: white; font-family: inherit; font-size: 18px; box-sizing: border-box; 
+}
+select:disabled { opacity: 0.3; cursor: not-allowed; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: calc(100% - 15px) center; }
+select optgroup { background: #1a1a1a; color: white; }
+select option { background: #1a1a1a; color: white; }
+
+.log-container {
+    background: rgba(0,0,0,0.2); border-radius: 12px; margin-top: 10px;
+    max-height: 250px; overflow-y: auto; text-align: left; padding: 10px;
+}
+.log-item { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 15px; display: flex; justify-content: space-between; align-items: center; } 
+.log-item:last-child { border-bottom: none; }
+.log-item .play-info { flex: 1; }
+.log-item .play-meta { color: var(--text-accent); font-size: 12px; font-weight: bold; margin-left: 10px; opacity: 0.9; } 
+.log-empty { color: rgba(255,255,255,0.4); font-size: 14px; padding: 20px; text-align: center; }
+
+.danger-btn { background: #601a1a; font-size: 16px; margin-top: 10px; width: 100%; }
+.close-drawer { background: rgba(255,255,255,0.1); font-size: 16px; margin-top: 15px; border-radius: 30px; width: 100%; padding: 18px; }
+
+/* --- Bun Rain Animation --- */
+.bun-drop {
+    position: fixed;
+    top: -100px;
+    width: 60px;
+    height: 60px;
+    z-index: 2000;
+    pointer-events: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    animation: fall linear forwards;
+}
+
+@keyframes fall {
+    to {
+        transform: translateY(110vh) rotate(360deg);
+    }
+}
+
+/* Live Mode Styles */
+.live-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+#status-indicator {
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.pulse {
+    animation: blinker 2s linear infinite;
+    color: #ff4d4d;
+}
+
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+
+.hidden { display: none !important; }

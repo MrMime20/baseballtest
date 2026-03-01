@@ -1,3 +1,93 @@
+// --- PEER-TO-PEER STATE ---
+let peer = null;
+let connections = []; 
+const urlParams = new URLSearchParams(window.location.search);
+const spectateId = urlParams.get('game');
+const isSpectator = !!spectateId;
+
+function initP2P() {
+    if (isSpectator) {
+        document.body.classList.add('spectator-mode');
+        peer = new Peer(); 
+        peer.on('open', (id) => {
+            const conn = peer.connect(spectateId);
+            setupConnection(conn);
+        });
+        // This ensures the spectator's local game remains separate
+        console.log("Viewing remote game: " + spectateId);
+    } else {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            localStorage.setItem('my_peer_id', id);
+        });
+        peer.on('connection', (conn) => {
+            connections.push(conn);
+            sendUpdateToSpectators(conn); // Sync them immediately
+        });
+    }
+}
+
+function setupConnection(conn) {
+    conn.on('data', (data) => {
+        // Sync all incoming data
+        game = data.game;
+        gameLog = data.gameLog;
+        pitchData = data.pitchData;
+        timer = data.timer;
+        
+        // Update Team Names for Spectator
+        const awayLabel = document.getElementById('away-label');
+        const homeLabel = document.getElementById('home-label');
+        if (awayLabel) awayLabel.innerText = data.teamAway || "AWAY";
+        if (homeLabel) homeLabel.innerText = data.teamHome || "HOME";
+        
+        // Refresh UI
+        updateUI();
+        renderLog();
+        renderPitchUI();
+        updateTimerDisplay();
+    });
+}
+
+function broadcastUpdate() {
+    if (isSpectator || (connections && connections.length === 0)) return;
+    
+    const packet = {
+        game: game,
+        gameLog: gameLog,
+        pitchData: pitchData,
+        timer: timer,
+        teamAway: localStorage.getItem('team_away'),
+        teamHome: localStorage.getItem('team_home')
+    };
+
+    connections.forEach(conn => {
+        if (conn.open) {
+            conn.send(packet);
+        }
+    });
+}
+
+function sendUpdateToSpectators(conn) {
+    conn.send({
+        game: game,
+        gameLog: gameLog,
+        pitchData: pitchData,
+        timer: timer,
+        teamAway: localStorage.getItem('team_away') || "AWAY",
+        teamHome: localStorage.getItem('team_home') || "HOME"
+    });
+}
+
+function generateSpectatorLink() {
+    const myId = localStorage.getItem('my_peer_id');
+    const url = window.location.origin + window.location.pathname + "?game=" + myId;
+    
+    // Copy to clipboard (you already have a copy function, just use that logic)
+    navigator.clipboard.writeText(url);
+    alert("Spectator link copied! Keep this tab open to host.");
+}
+
 // Initialize game state from localStorage or defaults
 let game = JSON.parse(localStorage.getItem('diamond_tracker_game')) || { 
     away: 0, 
@@ -36,12 +126,18 @@ let touchStartY = 0;
 let touchEndY = 0;
 
 function saveAll() {
+    // Spectators should never save to their own localStorage 
+    // while viewing someone else's game.
+    if (isSpectator) return; 
+
     localStorage.setItem('diamond_tracker_game', JSON.stringify(game));
     localStorage.setItem('diamond_tracker_log', JSON.stringify(gameLog));
     localStorage.setItem('diamond_tracker_theme', currentThemeIndex);
     localStorage.setItem('diamond_tracker_timer', JSON.stringify(timer));
-    localStorage.setItem('diamond_tracker_wakelock', wakeLockEnabled);
     localStorage.setItem('diamond_tracker_pitch', JSON.stringify(pitchData));
+    
+    // Trigger the P2P broadcast
+    broadcastUpdate();
 }
 
 const themes = [
@@ -101,14 +197,12 @@ function cycleTheme() {
     saveAll();
 }
 
-function updateScore(team, val) {
-    const oldVal = game[team];
-    const newVal = Math.max(0, game[team] + val);
-    if (oldVal !== newVal) {
-        game[team] = newVal;
-        morphNumber(team, newVal);
-        saveAll();
-    }
+function updateScore(team, delta) {
+    if (isSpectator) return; 
+    game[team] = Math.max(0, game[team] + delta);
+    saveAll();
+    updateUI();
+    broadcastUpdate(); // Add this line!
 }
 
 function morphNumber(team, newVal) {
@@ -170,14 +264,17 @@ function removeOut() {
 }
 
 function addOut() {
-    if (isClearing || game.outs >= 3) return;
+    if (isSpectator) return;
+
     game.outs++;
-    updateUI();
-    saveAll();
-    if (game.outs === 3) {
-        isClearing = true;
-        setTimeout(sequentialReset, 600);
+    if (game.outs >= 3) {
+        game.outs = 0;
+        game.top = !game.top;
+        if (game.top) game.inning++;
     }
+    saveAll();
+    updateUI();
+    broadcastUpdate();
 }
 
 function sequentialReset() {
@@ -338,9 +435,12 @@ function togglePitchMode() {
 }
 
 function updatePitch(type, val) {
+    if (isSpectator) return; // Add this line!
+    if (pitchData.mode === 'off') return;
     pitchData[type] = Math.max(0, pitchData[type] + val);
-    renderPitchUI();
     saveAll();
+    renderPitchUI();
+    broadcastUpdate(); // Add this line!
 }
 
 function renderPitchUI() {
@@ -457,6 +557,22 @@ function addHitLog() {
     document.getElementById('log-player').value = "";
     document.getElementById('log-type').selectedIndex = 0;
     document.getElementById('log-location').selectedIndex = 0;
+}
+
+function addLog(play) {
+    if (isSpectator) return;
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const logEntry = {
+        play,
+        score: `${game.away}-${game.home}`,
+        inning: `${game.top ? 'Top' : 'Bot'} ${game.inning}`,
+        time: timestamp
+    };
+    gameLog.unshift(logEntry);
+    renderLog();
+    saveAll();
+    broadcastUpdate();
 }
 
 function renderLog() {
@@ -713,14 +829,30 @@ function stopBunRain() {
     rainInterval = null;
 }
 
-// Initial Run
+function copySpectatorLink() {
+    const myId = localStorage.getItem('my_peer_id');
+    if (!myId) {
+        alert("Peer connection not ready yet. Please wait a moment.");
+        return;
+    }
+    const url = window.location.origin + window.location.pathname + "?game=" + myId;
+    
+    navigator.clipboard.writeText(url).then(() => {
+        alert("Spectator link copied! Keep this tab open to keep hosting.");
+    });
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
+    initP2P(); // Initialize PeerJS
+    
     applyTheme();
     updateUI();
     renderLog();
     updateTimerDisplay();
     renderPitchUI();
     setupSwipeToClose();
+    
     if (wakeLockEnabled) requestWakeLock();
     else updateWakeLockUI(false);
     if (timer.running) startInterval();
@@ -732,102 +864,5 @@ document.addEventListener('DOMContentLoaded', () => {
         const menu = document.getElementById('share-menu');
         if (menu) menu.classList.remove('active');
     });
+    // Rest of your team name loading...
 });
-
-// --- PEER-TO-PEER LIVE LOGIC ---
-let peer = null;
-let conn = null;
-const urlParams = new URLSearchParams(window.location.search);
-const joinId = urlParams.get('join');
-
-// Initialize PeerJS
-function initPeer() {
-    // We use a simple ID based on the date or a random string
-    const peerId = joinId || 'game-' + Math.random().toString(36).substr(2, 5);
-    peer = new Peer(peerId);
-
-    peer.on('open', (id) => {
-        console.log('My peer ID is: ' + id);
-        if (joinId) {
-            connectToHost(joinId);
-        }
-    });
-
-    // HOST SIDE: Listen for someone connecting
-    peer.on('connection', (connection) => {
-        conn = connection;
-        console.log("Spectator joined!");
-        broadcastData(); // Send current score immediately on join
-    });
-}
-
-// SPECTATOR SIDE: Connect to the person scoring
-function connectToHost(id) {
-    conn = peer.connect(id);
-    document.body.classList.add('spectator-mode');
-    
-    // Hide controls so spectators can't click buttons
-    const controls = document.querySelectorAll('.control-group, .btn-score, .pitch-select');
-    controls.forEach(c => c.style.display = 'none');
-    
-    // Create a "Live" overlay
-    const indicator = document.createElement('div');
-    indicator.innerHTML = '<span class="pulse">●</span> LIVE VIEWING';
-    indicator.className = 'glass';
-    indicator.style = "position:fixed; top:10px; left:50%; transform:translateX(-50%); padding:5px 15px; font-size:12px; z-index:1000;";
-    document.body.appendChild(indicator);
-
-    conn.on('data', (data) => {
-        updateUIFromData(data);
-    });
-}
-
-// Sync the UI when data is received
-function updateUIFromData(data) {
-    gameState = data;
-    updateScoreDisplay();
-    updateOutsDisplay();
-    updateInningDisplay();
-    // Refresh pitch counter if active
-    if (gameState.pitchMode !== 'off') {
-        renderPitchUI();
-    }
-}
-
-// HOST SIDE: Send data to everyone connected
-function broadcastData() {
-    if (conn && conn.open) {
-        conn.send(gameState);
-    }
-}
-
-// Generate the share link
-function startBroadcast() {
-    if (!peer) initPeer();
-    
-    // Give PeerJS a moment to initialize if it hasn't
-    setTimeout(() => {
-        if (!peer || !peer.id) return alert("Connection error. Try again.");
-        
-        const shareUrl = `${window.location.origin}${window.location.pathname}?join=${peer.id}`;
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            alert("Live Link Copied! Send this to friends to watch live.");
-            
-            // UI Feedback
-            document.getElementById('broadcast-btn').classList.add('hidden');
-            document.getElementById('status-indicator').classList.remove('hidden');
-        });
-    }, 500);
-}
-
-// Initialize on load
-window.addEventListener('load', () => {
-    if (joinId) {
-        initPeer();
-    }
-});
-
-// IMPORTANT: Add "broadcastData();" inside your existing changeScore, 
-// changeOuts, and changeInning functions so they update the spectators!

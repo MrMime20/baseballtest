@@ -269,28 +269,35 @@ select option { background: #1a1a1a; color: white; }
     }
 }
 
-/* Live Mode Styles */
-.live-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 10px;
+/* Hide all controls when spectating */
+.spectator-mode .controls, 
+.spectator-mode .nav-btn, 
+.spectator-mode .tools-trigger, 
+.spectator-mode .p-btn, 
+.spectator-mode .m-btn,
+.spectator-mode .danger-btn,
+.spectator-mode .hit-input-stack,
+.spectator-mode .theme-toggle {
+    display: none !important;
 }
 
-#status-indicator {
-    font-size: 11px;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+/* Make sure the screen isn't clickable */
+.spectator-mode .outs-card, 
+.spectator-mode .score-value,
+.spectator-mode .team-name {
+    pointer-events: none;
 }
 
-.pulse {
-    animation: blinker 2s linear infinite;
-    color: #ff4d4d;
+/* Optional: Visual indicator */
+.spectator-mode::after {
+    content: "LIVE SPECTATOR";
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: #e63946;
+    color: white;
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    z-index: 9999;
 }
-
-@keyframes blinker {
-    50% { opacity: 0; }
-}
-
-.hidden { display: none !important; }

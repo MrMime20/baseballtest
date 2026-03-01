@@ -41,6 +41,15 @@ function setupConnection(conn) {
         if (awayLabel) awayLabel.innerText = data.teamAway || "AWAY";
         if (homeLabel) homeLabel.innerText = data.teamHome || "HOME";
         
+        // --- ADD THIS LOGIC HERE ---
+        // If the host has the timer running, start the interval locally 
+        // so the clock ticks every second on the spectator's screen.
+        if (timer.running) {
+            startInterval();
+        } else {
+            clearInterval(timerInterval);
+        }
+        
         // Refresh UI
         updateUI();
         renderLog();
@@ -194,7 +203,8 @@ function applyTheme() {
 function cycleTheme() {
     currentThemeIndex = (currentThemeIndex + 1) % themes.length;
     applyTheme();
-    saveAll();
+    // Allow spectators to change their OWN view without saving/broadcasting
+    if (!isSpectator) saveAll();
 }
 
 function updateScore(team, delta) {
@@ -266,15 +276,19 @@ function removeOut() {
 function addOut() {
     if (isSpectator) return;
 
-    game.outs++;
-    if (game.outs >= 3) {
-        game.outs = 0;
-        game.top = !game.top;
-        if (game.top) game.inning++;
+    if (game.outs + 1 >= 3) {
+        isClearing = true;
+        // Show the 3rd dot first
+        const dots = document.querySelectorAll('.dot');
+        if (dots[2]) dots[2].classList.add('active');
+        
+        // Wait half a second so the user sees the 3rd out, then fade
+        setTimeout(sequentialReset, 500);
+    } else {
+        game.outs++;
+        saveAll();
+        updateUI();
     }
-    saveAll();
-    updateUI();
-    broadcastUpdate();
 }
 
 function sequentialReset() {
@@ -309,21 +323,25 @@ function changeInning(dir) {
 
 function updateUI(shouldAnimate = false) {
     const inningText = document.getElementById('inning-text');
+    
     const render = () => {
         const inNum = document.getElementById('inning-num');
         const inHalf = document.getElementById('inning-half');
         const awayC = document.getElementById('away-card');
         const homeC = document.getElementById('home-card');
-        const awayS = document.getElementById('away-score');
-        const homeS = document.getElementById('home-score');
-
+        
         if (inNum) inNum.innerText = game.inning;
         if (inHalf) inHalf.innerText = game.top ? 'TOP' : 'BOTTOM';
         if (awayC) awayC.classList.toggle('batting-now', game.top);
         if (homeC) homeC.classList.toggle('batting-now', !game.top);
-        if (awayS) awayS.innerText = game.away;
-        if (homeS) homeS.innerText = game.home;
         
+        // Fix: Use morphNumber instead of direct innerText to keep animations
+        const awayS = document.getElementById('away-score');
+        const homeS = document.getElementById('home-score');
+        if (awayS && awayS.innerText != game.away) morphNumber('away', game.away);
+        if (homeS && homeS.innerText != game.home) morphNumber('home', game.home);
+        
+        // Handle Outs Dots
         if (!isClearing) {
             document.querySelectorAll('.dot').forEach((d, i) => {
                 d.classList.toggle('active', i < game.outs);
@@ -339,7 +357,9 @@ function updateUI(shouldAnimate = false) {
             inningText.classList.add('slide-in');
             setTimeout(() => { inningText.classList.remove('slide-in'); }, 50);
         }, 300);
-    } else { render(); }
+    } else {
+        render();
+    }
 }
 
 function toggleTimer() {
@@ -355,8 +375,8 @@ function toggleTimer() {
     }
     saveAll();
 }
-
 function resetTimer() {
+    if (isSpectator) return; // Hard block for spectators
     if (confirm("Reset the game timer to zero?")) {
         timer = { startTime: null, baseSeconds: 0, running: false };
         if (timerInterval) clearInterval(timerInterval);
@@ -364,7 +384,6 @@ function resetTimer() {
         saveAll();
     }
 }
-
 function startInterval() {
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {

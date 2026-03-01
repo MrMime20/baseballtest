@@ -136,7 +136,14 @@ body {
 }
 
 .glass { background: var(--glass-bg); border-radius: 24px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(10px); }
-.goo-zone { height: 150px; position: relative; display: flex; justify-content: center; align-items: center; }
+.goo-zone { 
+    height: 150px; 
+    position: relative; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    overflow: visible; /* Add this to prevent filter clipping */
+}
 .away-filter { filter: url(#gooey-away); }
 .home-filter { filter: url(#gooey-home); }
 
@@ -219,6 +226,7 @@ button { flex: 1; border: none; border-radius: 12px; padding: 15px; cursor: poin
     transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
     color: white; text-align: center; max-height: 85vh; overflow-y: auto;
     background: var(--bg-color); /* Use theme bg for drawer consistency */
+    padding-bottom: env(safe-area-inset-bottom, 25px); /* Respects notch/home bar */
 }
 .drawer-overlay.active .drawer-content { transform: translateY(0); }
 .drawer-handle { width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: -5px auto 20px; }
@@ -269,35 +277,65 @@ select option { background: #1a1a1a; color: white; }
     }
 }
 
-/* Hide all controls when spectating */
+/* --- Final Spectator Mode Logic --- */
+
+/* Hide interactive game-management elements */
 .spectator-mode .controls, 
 .spectator-mode .nav-btn, 
-.spectator-mode .tools-trigger, 
 .spectator-mode .p-btn, 
 .spectator-mode .m-btn,
 .spectator-mode .danger-btn,
-.spectator-mode .hit-input-stack,
-.spectator-mode .theme-toggle {
+.spectator-mode .hit-input-stack {
     display: none !important;
 }
 
-/* Make sure the screen isn't clickable */
+/* Ensure Theme Toggle and Tools Trigger (Log) ARE visible */
+.spectator-mode .theme-toggle,
+.spectator-mode .tools-trigger {
+    display: flex !important;
+}
+
+/* Specifically hide the "Record Play" text/header in the drawer */
+.spectator-mode .tool-section:nth-of-type(1) {
+    display: none !important;
+}
+
+/* Ensure the Log section (2nd section) is visible and clean */
+.spectator-mode .tool-section:nth-of-type(2) {
+    display: block !important;
+    border-top: none !important;
+}
+
+/* Hide Team Name Editing and Reset buttons */
+.spectator-mode .tool-section:nth-of-type(3),
+.spectator-mode .tool-section:nth-of-type(4) {
+    display: none !important;
+}
+
+/* Hide the timer reset button specifically */
+.spectator-mode .timer-container div[onclick="resetTimer()"] {
+    display: none !important;
+}
+
+/* Prevent accidental clicks on scores/outs by spectators */
 .spectator-mode .outs-card, 
 .spectator-mode .score-value,
 .spectator-mode .team-name {
     pointer-events: none;
 }
 
-/* Optional: Visual indicator */
 .spectator-mode::after {
-    content: "LIVE SPECTATOR";
+    content: "LIVE VIEW ONLY";
     position: fixed;
-    top: 10px;
-    right: 10px;
-    background: #e63946;
-    color: white;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-accent);
+    color: black;
     font-size: 10px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    z-index: 9999;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-weight: bold;
+    z-index: 200;
+    opacity: 0.8;
 }

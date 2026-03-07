@@ -55,21 +55,19 @@ function updateSpectatorCount() {
 
 function setupConnection(conn) {
     conn.on('data', (data) => {
-        // 1. Sync State
+        // Sync the core data objects
         game = data.game;
         gameLog = data.gameLog;
         pitchData = data.pitchData;
         timer = data.timer;
         
-        // 2. Sync Team Names
-        const awayLabel = document.getElementById('away-label');
-        const homeLabel = document.getElementById('home-label');
-        if (awayLabel && data.teamAway) awayLabel.innerText = data.teamAway.toUpperCase();
-        if (homeLabel && data.teamHome) homeLabel.innerText = data.teamHome.toUpperCase();
+        // Sync Team Names directly
+        if (data.teamAway) updateTeamName('away', data.teamAway);
+        if (data.teamHome) updateTeamName('home', data.teamHome);
 
-        // 3. Handle Timer Logic
+        // Sync Timer State
         if (timer.running) {
-            if (!timerInterval) startInterval(); 
+            if (!timerInterval) startInterval();
         } else {
             if (timerInterval) {
                 clearInterval(timerInterval);
@@ -77,10 +75,10 @@ function setupConnection(conn) {
             }
         }
 
-        // 4. Update Visuals
+        // Refresh all UI components
         updateUI();
         renderLog(); 
-        renderPitchUI();
+        renderPitchUI(); 
         updateTimerDisplay();
     });
 }
@@ -108,23 +106,20 @@ function setupConnection(conn) {
 }
 
 function broadcastUpdate() {
-    // Stop if we are a spectator or have no one watching
-    if (isSpectator || (connections && connections.length === 0)) return;
+    if (isSpectator || connections.length === 0) return;
     
     const packet = {
         game: game,
         gameLog: gameLog,
         pitchData: pitchData,
         timer: timer,
-        // Explicitly pull these from the UI/LocalStorage to ensure they sync
+        // Include the actual text currently in the labels
         teamAway: document.getElementById('away-label')?.innerText || "AWAY",
         teamHome: document.getElementById('home-label')?.innerText || "HOME"
     };
 
     connections.forEach(conn => {
-        if (conn.open) {
-            conn.send(packet);
-        }
+        if (conn.open) conn.send(packet);
     });
 }
 
@@ -432,7 +427,7 @@ function startInterval() {
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         updateTimerDisplay();
-        // If we are the host, broadcast every second to keep spectator timers in sync
+        // Host sends a sync packet every second
         if (!isSpectator) {
             broadcastUpdate();
         }
@@ -589,8 +584,16 @@ function handleSwipeGesture() {
 
 function updateTeamName(team, name) {
     const label = document.getElementById(`${team}-label`);
-    if (label) label.innerText = name.trim() === "" ? (team === 'away' ? 'AWAY' : 'HOME') : name.toUpperCase();
-    localStorage.setItem(`team_${team}`, name);
+    const input = document.getElementById(`edit-${team}`);
+    
+    if (label) label.innerText = name.toUpperCase();
+    if (input) input.value = name;
+
+    // Only the host saves to localStorage and triggers a broadcast
+    if (!isSpectator) {
+        localStorage.setItem(`team_${team}`, name);
+        broadcastUpdate();
+    }
 }
 
 function confirmReset() {

@@ -8,13 +8,16 @@ const isSpectator = !!spectateId;
 function initP2P() {
     if (isSpectator) {
         document.body.classList.add('spectator-mode');
+        // Show "Live View" status
+        const countEl = document.getElementById('spec-count');
+        countEl.innerText = "LIVE VIEW ONLY";
+        countEl.style.display = "block";
+        
         peer = new Peer(); 
         peer.on('open', (id) => {
             const conn = peer.connect(spectateId);
             setupConnection(conn);
         });
-        // This ensures the spectator's local game remains separate
-        console.log("Viewing remote game: " + spectateId);
     } else {
         peer = new Peer();
         peer.on('open', (id) => {
@@ -22,38 +25,85 @@ function initP2P() {
         });
         peer.on('connection', (conn) => {
             connections.push(conn);
-            sendUpdateToSpectators(conn); // Sync them immediately
+            updateSpectatorCount(); // Update the counter
+            sendUpdateToSpectators(conn);
+            
+            // Remove connection if they leave
+            conn.on('close', () => {
+                connections = connections.filter(c => c !== conn);
+                updateSpectatorCount();
+            });
         });
+    }
+}
+
+function updateSpectatorCount() {
+    if (isSpectator) return;
+    const countEl = document.getElementById('spec-count');
+    if (connections.length > 0) {
+        countEl.innerText = `${connections.length} SPECTATOR${connections.length === 1 ? '' : 'S'}`;
+        countEl.style.display = "block";
+    } else {
+        countEl.style.display = "none";
     }
 }
 
 function setupConnection(conn) {
     conn.on('data', (data) => {
-        // Sync all incoming data
+        // 1. Handle Notification Dot for new hits
+        const drawer = document.getElementById('drawer');
+        const dot = document.getElementById('nav-dot');
+        const isDrawerOpen = drawer && drawer.classList.contains('active');
+        
+        if (isSpectator && data.gameLog && data.gameLog.length > gameLog.length && !isDrawerOpen) {
+            if (dot) dot.classList.add('active');
+        }
+
+        // 2. Sync State Variables
         game = data.game;
         gameLog = data.gameLog;
         pitchData = data.pitchData;
         timer = data.timer;
         
-        // Update Team Names for Spectator
+        // 3. Update Team Names
         const awayLabel = document.getElementById('away-label');
         const homeLabel = document.getElementById('home-label');
         if (awayLabel) awayLabel.innerText = data.teamAway || "AWAY";
         if (homeLabel) homeLabel.innerText = data.teamHome || "HOME";
         
-        // --- ADD THIS LOGIC HERE ---
-        // If the host has the timer running, start the interval locally 
-        // so the clock ticks every second on the spectator's screen.
+        // 4. Handle Timer
         if (timer.running) {
             startInterval();
-        } else {
+        } else if (timerInterval) {
             clearInterval(timerInterval);
         }
+
+        // 5. Force Refresh UI
+        updateUI();
+        renderLog(); // This is the critical call for the hit log
+        renderPitchUI();
+        updateTimerDisplay();
+    });
+}
+
+function setupConnection(conn) {
+    conn.on('data', (data) => {
+        // If new logs arrive and drawer is closed, show the red dot
+        const drawer = document.getElementById('drawer');
+        const isDrawerClosed = drawer && !drawer.classList.contains('active');
+        if (isSpectator && data.gameLog && data.gameLog.length > gameLog.length && isDrawerClosed) {
+            const dot = document.getElementById('nav-dot');
+            if (dot) dot.classList.add('active');
+        }
+
+        // ... rest of your sync logic (game, gameLog, timer, etc.)
+        game = data.game;
+        gameLog = data.gameLog;
+        pitchData = data.pitchData;
+        timer = data.timer;
         
-        // Refresh UI
         updateUI();
         renderLog();
-        renderPitchUI();
         updateTimerDisplay();
     });
 }
@@ -98,7 +148,9 @@ function generateSpectatorLink() {
 }
 
 // Initialize game state from localStorage or defaults
-let game = JSON.parse(localStorage.getItem('diamond_tracker_game')) || { 
+const isHost = !isSpectator;
+
+let game = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_game'))) || { 
     away: 0, 
     home: 0, 
     inning: 1, 
@@ -106,31 +158,27 @@ let game = JSON.parse(localStorage.getItem('diamond_tracker_game')) || {
     outs: 0 
 };
 
-let gameLog = JSON.parse(localStorage.getItem('diamond_tracker_log')) || [];
-let currentThemeIndex = parseInt(localStorage.getItem('diamond_tracker_theme')) || 0;
-let isClearing = false;
+let gameLog = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_log'))) || [];
 
-// Timer State
-let timer = JSON.parse(localStorage.getItem('diamond_tracker_timer')) || { 
+let timer = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_timer'))) || { 
     startTime: null, 
     baseSeconds: 0, 
     running: false 
 };
-let timerInterval = null;
 
-// Wake Lock State
-let wakeLock = null;
-let wakeLockEnabled = localStorage.getItem('diamond_tracker_wakelock') === 'true';
-
-// Pitch Counter State
-let pitchData = JSON.parse(localStorage.getItem('diamond_tracker_pitch')) || { 
+let pitchData = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_pitch'))) || { 
     mode: 'off', 
     simple: 0, 
     balls: 0, 
     strikes: 0 
 };
 
-// Touch tracking for swipe-to-close
+// Theme and WakeLock can remain local to the device/tab
+let currentThemeIndex = parseInt(localStorage.getItem('diamond_tracker_theme')) || 0;
+let wakeLockEnabled = localStorage.getItem('diamond_tracker_wakelock') === 'true';
+let isClearing = false;
+let timerInterval = null;
+let wakeLock = null;
 let touchStartY = 0;
 let touchEndY = 0;
 
@@ -494,13 +542,35 @@ function renderPitchUI() {
     }
 }
 
-function toggleDrawer(open) {
+function toggleDrawer(isOpen) {
     const drawer = document.getElementById('drawer-overlay');
-    if (!drawer) return;
-    drawer.classList.toggle('active', open);
-    if(open) {
-        document.getElementById('edit-away').value = localStorage.getItem('team_away') || "";
-        document.getElementById('edit-home').value = localStorage.getItem('team_home') || "";
+    const navDot = document.getElementById('nav-dot');
+    
+    if (drawer) {
+        if (isOpen) {
+            drawer.classList.add('active');
+            if (navDot) navDot.classList.remove('active');
+        } else {
+            drawer.classList.remove('active');
+        }
+    }
+}
+
+function openDrawer() {
+    const drawer = document.getElementById('drawer');
+    const dot = document.getElementById('nav-dot');
+    if (drawer) {
+        drawer.classList.add('active');
+    }
+    if (dot) {
+        dot.classList.remove('active');
+    }
+}
+
+function closeDrawer() {
+    const drawer = document.getElementById('drawer');
+    if (drawer) {
+        drawer.classList.remove('active');
     }
 }
 
@@ -863,7 +933,7 @@ function copySpectatorLink() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    initP2P(); // Initialize PeerJS
+    initP2P(); 
     
     applyTheme();
     updateUI();
@@ -874,14 +944,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (wakeLockEnabled) requestWakeLock();
     else updateWakeLockUI(false);
+    
     if (timer.running) startInterval();
-    const savedAway = localStorage.getItem('team_away');
-    const savedHome = localStorage.getItem('team_home');
-    if (savedAway) updateTeamName('away', savedAway);
-    if (savedHome) updateTeamName('home', savedHome);
+
+    // ONLY load team names from local storage if NOT a spectator
+    if (!isSpectator) {
+        const savedAway = localStorage.getItem('team_away');
+        const savedHome = localStorage.getItem('team_home');
+        if (savedAway) updateTeamName('away', savedAway);
+        if (savedHome) updateTeamName('home', savedHome);
+        
+        const editAway = document.getElementById('edit-away');
+        const editHome = document.getElementById('edit-home');
+        if (editAway && savedAway) editAway.value = savedAway;
+        if (editHome && savedHome) editHome.value = savedHome;
+    }
+
     document.addEventListener('click', () => {
         const menu = document.getElementById('share-menu');
         if (menu) menu.classList.remove('active');
     });
-    // Rest of your team name loading...
 });

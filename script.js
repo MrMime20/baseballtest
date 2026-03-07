@@ -27,7 +27,12 @@ function initP2P() {
         peer.on('connection', (conn) => {
             connections.push(conn);
             updateSpectatorCount();
-            sendUpdateToSpectators(conn);
+            
+            // IMMEDIATE PUSH: Send current state as soon as they connect
+            // This prevents the 0-0 "fresh game" bug
+            setTimeout(() => {
+                sendUpdateToSpectators(conn);
+            }, 500); // Small delay ensures the connection channel is fully ready
             
             conn.on('close', () => {
                 connections = connections.filter(c => c !== conn);
@@ -50,29 +55,21 @@ function updateSpectatorCount() {
 
 function setupConnection(conn) {
     conn.on('data', (data) => {
-        // 1. Sync State Variables
+        // 1. Sync State
         game = data.game;
         gameLog = data.gameLog;
         pitchData = data.pitchData;
         timer = data.timer;
         
-        // 2. Sync Team Names (This was missing logic to update the labels)
+        // 2. Sync Team Names
         const awayLabel = document.getElementById('away-label');
         const homeLabel = document.getElementById('home-label');
         if (awayLabel && data.teamAway) awayLabel.innerText = data.teamAway.toUpperCase();
         if (homeLabel && data.teamHome) homeLabel.innerText = data.teamHome.toUpperCase();
 
-        // 3. Handle Notification Dot for new hits
-        const drawer = document.getElementById('drawer');
-        const dot = document.getElementById('nav-dot');
-        const isDrawerOpen = drawer && drawer.classList.contains('active');
-        if (isSpectator && data.gameLog && data.gameLog.length > gameLog.length && !isDrawerOpen) {
-            if (dot) dot.classList.add('active');
-        }
-        
-        // 4. Handle Timer State
+        // 3. Handle Timer Logic
         if (timer.running) {
-            if (!timerInterval) startInterval(); // Start if not already running
+            if (!timerInterval) startInterval(); 
         } else {
             if (timerInterval) {
                 clearInterval(timerInterval);
@@ -80,9 +77,8 @@ function setupConnection(conn) {
             }
         }
 
-        // 5. Force Refresh UI
-        // We pass 'true' to updateUI to ensure the inning animations trigger if the inning changed
-        updateUI(true);
+        // 4. Update Visuals
+        updateUI();
         renderLog(); 
         renderPitchUI();
         updateTimerDisplay();
@@ -112,6 +108,7 @@ function setupConnection(conn) {
 }
 
 function broadcastUpdate() {
+    // Stop if we are a spectator or have no one watching
     if (isSpectator || (connections && connections.length === 0)) return;
     
     const packet = {
@@ -119,8 +116,9 @@ function broadcastUpdate() {
         gameLog: gameLog,
         pitchData: pitchData,
         timer: timer,
-        teamAway: localStorage.getItem('team_away'),
-        teamHome: localStorage.getItem('team_home')
+        // Explicitly pull these from the UI/LocalStorage to ensure they sync
+        teamAway: document.getElementById('away-label')?.innerText || "AWAY",
+        teamHome: document.getElementById('home-label')?.innerText || "HOME"
     };
 
     connections.forEach(conn => {
@@ -131,13 +129,14 @@ function broadcastUpdate() {
 }
 
 function sendUpdateToSpectators(conn) {
+    if (!conn || !conn.open) return;
     conn.send({
         game: game,
         gameLog: gameLog,
         pitchData: pitchData,
         timer: timer,
-        teamAway: localStorage.getItem('team_away') || "AWAY",
-        teamHome: localStorage.getItem('team_home') || "HOME"
+        teamAway: document.getElementById('away-label')?.innerText || "AWAY",
+        teamHome: document.getElementById('home-label')?.innerText || "HOME"
     });
 }
 
@@ -433,6 +432,10 @@ function startInterval() {
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         updateTimerDisplay();
+        // If we are the host, broadcast every second to keep spectator timers in sync
+        if (!isSpectator) {
+            broadcastUpdate();
+        }
     }, 1000);
 }
 

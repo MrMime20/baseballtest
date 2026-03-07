@@ -8,10 +8,11 @@ const isSpectator = !!spectateId;
 function initP2P() {
     if (isSpectator) {
         document.body.classList.add('spectator-mode');
-        // Show "Live View" status
         const countEl = document.getElementById('spec-count');
-        countEl.innerText = "LIVE VIEW ONLY";
-        countEl.style.display = "block";
+        if (countEl) {
+            countEl.innerText = "LIVE VIEW ONLY";
+            countEl.style.display = "block";
+        }
         
         peer = new Peer(); 
         peer.on('open', (id) => {
@@ -25,10 +26,9 @@ function initP2P() {
         });
         peer.on('connection', (conn) => {
             connections.push(conn);
-            updateSpectatorCount(); // Update the counter
+            updateSpectatorCount();
             sendUpdateToSpectators(conn);
             
-            // Remove connection if they leave
             conn.on('close', () => {
                 connections = connections.filter(c => c !== conn);
                 updateSpectatorCount();
@@ -50,37 +50,40 @@ function updateSpectatorCount() {
 
 function setupConnection(conn) {
     conn.on('data', (data) => {
-        // 1. Handle Notification Dot for new hits
-        const drawer = document.getElementById('drawer');
-        const dot = document.getElementById('nav-dot');
-        const isDrawerOpen = drawer && drawer.classList.contains('active');
-        
-        if (isSpectator && data.gameLog && data.gameLog.length > gameLog.length && !isDrawerOpen) {
-            if (dot) dot.classList.add('active');
-        }
-
-        // 2. Sync State Variables
+        // 1. Sync State Variables
         game = data.game;
         gameLog = data.gameLog;
         pitchData = data.pitchData;
         timer = data.timer;
         
-        // 3. Update Team Names
+        // 2. Sync Team Names (This was missing logic to update the labels)
         const awayLabel = document.getElementById('away-label');
         const homeLabel = document.getElementById('home-label');
-        if (awayLabel) awayLabel.innerText = data.teamAway || "AWAY";
-        if (homeLabel) homeLabel.innerText = data.teamHome || "HOME";
+        if (awayLabel && data.teamAway) awayLabel.innerText = data.teamAway.toUpperCase();
+        if (homeLabel && data.teamHome) homeLabel.innerText = data.teamHome.toUpperCase();
+
+        // 3. Handle Notification Dot for new hits
+        const drawer = document.getElementById('drawer');
+        const dot = document.getElementById('nav-dot');
+        const isDrawerOpen = drawer && drawer.classList.contains('active');
+        if (isSpectator && data.gameLog && data.gameLog.length > gameLog.length && !isDrawerOpen) {
+            if (dot) dot.classList.add('active');
+        }
         
-        // 4. Handle Timer
+        // 4. Handle Timer State
         if (timer.running) {
-            startInterval();
-        } else if (timerInterval) {
-            clearInterval(timerInterval);
+            if (!timerInterval) startInterval(); // Start if not already running
+        } else {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
         }
 
         // 5. Force Refresh UI
-        updateUI();
-        renderLog(); // This is the critical call for the hit log
+        // We pass 'true' to updateUI to ensure the inning animations trigger if the inning changed
+        updateUI(true);
+        renderLog(); 
         renderPitchUI();
         updateTimerDisplay();
     });
@@ -148,32 +151,24 @@ function generateSpectatorLink() {
 }
 
 // Initialize game state from localStorage or defaults
+// --- INITIAL STATE LOGIC ---
 const isHost = !isSpectator;
 
+// Spectators start with a clean object that setupConnection() will fill
 let game = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_game'))) || { 
-    away: 0, 
-    home: 0, 
-    inning: 1, 
-    top: true, 
-    outs: 0 
+    away: 0, home: 0, inning: 1, top: true, outs: 0 
 };
 
 let gameLog = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_log'))) || [];
 
 let timer = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_timer'))) || { 
-    startTime: null, 
-    baseSeconds: 0, 
-    running: false 
+    startTime: null, baseSeconds: 0, running: false 
 };
 
 let pitchData = (isHost && JSON.parse(localStorage.getItem('diamond_tracker_pitch'))) || { 
-    mode: 'off', 
-    simple: 0, 
-    balls: 0, 
-    strikes: 0 
+    mode: 'off', simple: 0, balls: 0, strikes: 0 
 };
 
-// Theme and WakeLock can remain local to the device/tab
 let currentThemeIndex = parseInt(localStorage.getItem('diamond_tracker_theme')) || 0;
 let wakeLockEnabled = localStorage.getItem('diamond_tracker_wakelock') === 'true';
 let isClearing = false;
@@ -256,11 +251,14 @@ function cycleTheme() {
 }
 
 function updateScore(team, delta) {
-    if (isSpectator) return; 
-    game[team] = Math.max(0, game[team] + delta);
-    saveAll();
+    // Only the host can change the underlying data
+    if (!isSpectator) {
+        game[team] = Math.max(0, game[team] + delta);
+        saveAll();
+        broadcastUpdate(); 
+    }
+    // Both host and spectator need to see the change
     updateUI();
-    broadcastUpdate(); // Add this line!
 }
 
 function morphNumber(team, newVal) {
@@ -383,13 +381,12 @@ function updateUI(shouldAnimate = false) {
         if (awayC) awayC.classList.toggle('batting-now', game.top);
         if (homeC) homeC.classList.toggle('batting-now', !game.top);
         
-        // Fix: Use morphNumber instead of direct innerText to keep animations
+        // Use a loose inequality check to ensure numbers update
         const awayS = document.getElementById('away-score');
         const homeS = document.getElementById('home-score');
-        if (awayS && awayS.innerText != game.away) morphNumber('away', game.away);
-        if (homeS && homeS.innerText != game.home) morphNumber('home', game.home);
+        if (awayS && parseInt(awayS.innerText) !== game.away) morphNumber('away', game.away);
+        if (homeS && parseInt(homeS.innerText) !== game.home) morphNumber('home', game.home);
         
-        // Handle Outs Dots
         if (!isClearing) {
             document.querySelectorAll('.dot').forEach((d, i) => {
                 d.classList.toggle('active', i < game.outs);
@@ -486,7 +483,7 @@ function updateWakeLockUI(isActive) {
     if (!btn || !icon) return;
     if (isActive) {
         btn.classList.add('active');
-        icon.innerHTML = '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>';
+        icon.innerHTML = '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>';
     } else {
         btn.classList.remove('active');
         icon.innerHTML = '<path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>';
@@ -502,12 +499,14 @@ function togglePitchMode() {
 }
 
 function updatePitch(type, val) {
-    if (isSpectator) return; // Add this line!
-    if (pitchData.mode === 'off') return;
-    pitchData[type] = Math.max(0, pitchData[type] + val);
-    saveAll();
+    if (!isSpectator) {
+        if (pitchData.mode === 'off') return;
+        pitchData[type] = Math.max(0, pitchData[type] + val);
+        saveAll();
+        broadcastUpdate();
+    }
+    // Both host and spectator need to see the change
     renderPitchUI();
-    broadcastUpdate(); // Add this line!
 }
 
 function renderPitchUI() {

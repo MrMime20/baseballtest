@@ -43,6 +43,8 @@
     </div>
 </div>
 
+<div id="spec-count" class="spec-count-badge" style="display: none;">0 SPECTATORS</div>
+
 <div class="app-container">
     <div class="header glass">
         <div class="inning-container">
@@ -122,7 +124,13 @@
         </div>
     </div>
     
-    <button class="tools-trigger" onclick="toggleDrawer(true)">TOOLS & HIT LOG</button>
+    <div id="spec-count" class="spec-count-badge" style="display: none;">0 SPECTATORS</div>
+
+    <button class="tools-trigger" onclick="const drawer = document.getElementById('drawer-overlay'); if(drawer) drawer.classList.add('active'); const dot = document.getElementById('nav-dot'); if(dot) dot.classList.remove('active');">
+        Open Game Log & Tools
+        <div id="nav-dot" class="notification-dot"></div>
+    </button>
+</button>
 </div>
 
 <button class="wakelock-toggle" id="wakelock-btn" onclick="toggleWakeLock()" aria-label="Toggle Screen Awake">

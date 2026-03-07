@@ -289,14 +289,16 @@ select option { background: #1a1a1a; color: white; }
     display: none !important;
 }
 
+
 /* Ensure Theme Toggle and Tools Trigger (Log) ARE visible */
 .spectator-mode .theme-toggle,
 .spectator-mode .tools-trigger {
     display: flex !important;
 }
 
-/* Specifically hide the "Record Play" text/header in the drawer */
-.spectator-mode .tool-section:nth-of-type(1) {
+/* Hide the header and inputs but KEEP the section container for the log */
+.spectator-mode .tool-section:nth-of-type(1) h3,
+.spectator-mode .tool-section:nth-of-type(1) .hit-input-stack {
     display: none !important;
 }
 
@@ -324,18 +326,141 @@ select option { background: #1a1a1a; color: white; }
     pointer-events: none;
 }
 
-.spectator-mode::after {
-    content: "LIVE VIEW ONLY";
+/* --- Notification Dot & Spectator Badge --- */
+.tools-trigger { position: relative; }
+
+.notification-dot {
+    position: absolute;
+    top: -2px;
+    right: -10px;
+    width: 10px;
+    height: 10px;
+    background: #ff4444;
+    border-radius: 50%;
+    display: none;
+    box-shadow: 0 0 8px #ff4444;
+    border: 1px solid white;
+}
+
+.notification-dot.active { display: block; }
+
+.spec-count-badge {
     position: fixed;
     top: 90px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--text-accent);
-    color: black;
-    font-size: 10px;
-    padding: 2px 10px;
-    border-radius: 10px;
-    font-weight: bold;
-    z-index: 200;
-    opacity: 0.8;
+    background: rgba(0, 0, 0, 0.4);
+    color: var(--text-accent);
+    font-size: 11px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 900;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 150;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* --- Final Spectator Mode Logic --- */
+
+/* Hide interactive game-management elements */
+.spectator-mode .controls, 
+.spectator-mode .nav-btn, 
+.spectator-mode .p-btn, 
+.spectator-mode .m-btn,
+.spectator-mode .danger-btn,
+.spectator-mode .hit-input-stack {
+    display: none !important;
+}
+
+/* Ensure Theme Toggle and Tools Trigger (Log) ARE visible */
+.spectator-mode .theme-toggle,
+.spectator-mode .tools-trigger {
+    display: flex !important;
+}
+
+/* Ensure the Game Log section is fully visible and scrollable */
+.spectator-mode .tool-section {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Only hide the 'Team Name' edit inputs and 'Reset' buttons in tools */
+.spectator-mode .tool-section input,
+.spectator-mode .tool-section .danger-btn {
+    display: none !important;
+}
+
+/* Hide the timer reset button specifically */
+.spectator-mode .timer-container div[onclick="resetTimer()"] {
+    display: none !important;
+}
+
+/* Prevent accidental clicks on scores/outs by spectators */
+.spectator-mode .outs-card, 
+.spectator-mode .score-value,
+.spectator-mode .team-name {
+    pointer-events: none;
+}
+
+/* --- Final Spectator Mode Logic --- */
+
+/* Hide all game-management controls */
+.spectator-mode .controls, 
+.spectator-mode .nav-btn, 
+.spectator-mode .p-btn, 
+.spectator-mode .m-btn,
+.spectator-mode .danger-btn,
+.spectator-mode .hit-input-stack,
+.spectator-mode .pitch-controls,
+.spectator-mode .timer-container div:nth-child(2) {
+    display: none !important;
+}
+
+/* Ensure the drawer and log are ALWAYS visible */
+.spectator-mode .drawer,
+.spectator-mode .tool-section {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Hide specific management elements inside the drawer (like 'Reset' or 'Team Name' inputs) */
+.spectator-mode .tool-section input,
+.spectator-mode .tool-section .danger-btn,
+.spectator-mode #record-play-header, /* Hide the "Record Play" title if you have one */
+.spectator-mode .tool-section:first-child p {
+    display: none !important;
+}
+
+/* Force the log container to be full height since management tools are gone */
+.spectator-mode #log-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    display: block !important;
+}
+
+/* Ensure the drawer trigger button is still visible */
+.spectator-mode .tools-trigger {
+    display: flex !important;
+}
+
+.spectator-mode .menu-toggle,
+.spectator-mode #share-menu {
+    display: none !important;
+}
+
+/* Hide the Pitch Mode selection (Off/Simple/Adv) inside the drawer */
+/* This ensures spectators can't change how the host sees the game */
+.spectator-mode .tool-section:has(select[onchange="setPitchMode(this.value)"]),
+.spectator-mode select[onchange="setPitchMode(this.value)"] {
+    display: none !important;
+}
+
+/* Optional: If you have a specific 'Pitch Settings' header text, hide that too */
+.spectator-mode h3:contains("Pitch"),
+.spectator-mode .tool-section p:contains("Pitch") {
+    display: none !important;
 }
